@@ -42,7 +42,10 @@ with st.sidebar:
             for df in all_data.values()
             for cat in (df["Category"].unique() if not df.empty else [])
         )),
-        default=EXCLUDE_FROM_LIFESTYLE,
+        default=[c for c in EXCLUDE_FROM_LIFESTYLE if c in set(
+            cat for df in all_data.values()
+            if not df.empty for cat in df["Category"].unique()
+        )],
     )
 
 # Apply exclusions
