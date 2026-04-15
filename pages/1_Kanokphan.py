@@ -53,9 +53,9 @@ with st.sidebar:
     sources = st.multiselect("Data source", ["bank", "cc"], default=["bank", "cc"])
     all_cats = []
     _tmp = get_spending_df(bank_df, cc_df)
-    if not _tmp.empty:
-        all_cats = sorted(_tmp["Category"].unique().tolist())
-    exclude_cats = st.multiselect("Exclude categories", all_cats, default=EXCLUDE_FROM_LIFESTYLE)
+    all_cats = sorted(_tmp["Category"].unique().tolist()) if not _tmp.empty else []
+    safe_defaults = [c for c in EXCLUDE_FROM_LIFESTYLE if c in all_cats]
+    exclude_cats = st.multiselect("Exclude categories", all_cats, default=safe_defaults)
 
     date_col = st.container()
 
