@@ -172,20 +172,17 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
         if lo is not None and hi is not None:
             band_x = list(hi.index) + list(lo.index[::-1])
             band_y = list(hi.values) + list(lo.values[::-1])
-            
-            # --- NEW: Convert hex to RGBA for Plotly ---
+        
             h = c.lstrip('#')
             r, g, b = tuple(int(h[j:j+2], 16) for j in (0, 2, 4))
-            # 0.12 is approximately 20 in hex out of 255 (adjust this float for desired opacity)
             rgba_color = f"rgba({r}, {g}, {b}, 0.12)" 
-            # -------------------------------------------
 
             fig.add_trace(
                 go.Scatter(
                     x=band_x,
                     y=band_y,
                     fill="toself",
-                    fillcolor=rgba_color, # Use the compliant RGBA string here
+                    fillcolor=rgba_color,  
                     line_color="rgba(0,0,0,0)",
                     showlegend=False,
                     hoverinfo="skip",
@@ -209,9 +206,17 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
         line_dash="dash",
         line_color="#B4B2A9",
         line_width=1,
-        annotation_text=" forecast →",
-        annotation_position="top right",
-        annotation_font_size=11,
+    )
+
+    fig.add_annotation(
+        x=series.index[-1],
+        y=1,
+        yref="paper",
+        text=" forecast →",
+        showarrow=False,
+        xanchor="left",
+        yanchor="bottom",
+        font=dict(size=11),
     )
 
     fig.update_layout(
