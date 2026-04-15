@@ -1,0 +1,31 @@
+﻿รายการเดินบัญชีเงินฝากออมทรัพย์ (มีรายละเอียด),,,,,,,,,,,,
+K-DEPOSIT STATEMENT OF SAVING ACCOUNT (WITH DETAIL),,,,,,,,,,,,
+,Ref. No. DD.048 : N26040709140280535738I/2569,Page 1/1,,,0994,,,,,,,
+,Account,"MR. KANOKPHAN SIRITHIENTHONG
+25/12 ซ.เสรีไทย 19 ถ.เสรีไทย ต.คลองกุ่ม อ.บึงกุ่ม จ.กทม. 10240",,,,,Reference Code,,,,26040709140280535738,
+,,,,,,,Account Number,,,,005-8-95518-3,
+,,,,,,,Period,,,,22/03/2026 - 06/04/2026,
+,,,,,,,Owner Branch,,,,Sammakorn Place Ramkhamhaeng 110 Branch,
+,,,,,,,ENDING BALANCE,,,,,"58,123.58"
+,,,,,,,TOTAL WITHDRAWAL,,10,,ITEMS,"19,029.93"
+,,,,,,,TOTAL DEPOSIT,,6,,ITEMS,"14,926.00"
+,Date,"Time/
+Eff.Date",Descriptions,Withdrawal,,Deposit,,"Outstanding
+Balance",,Channel,,Details
+,22-03-26,,Beginning Balance,,,,,"62,227.51",,,,
+,23-03-26,09:32,Transfer Withdrawal,64.00,,,,"62,163.51",,K PLUS,,To X1269 MR. NATHORN APICHA++
+,23-03-26,09:59,Transfer Deposit,,,"1,500.00",,"63,663.51",,K PLUS,,From X1269 MR. NATHORN APICHA++
+,23-03-26,10:00,Transfer Withdrawal,"1,500.00",,,,"62,163.51",,K PLUS,,To X2079 MS. PORNPARN SIRIT++
+,23-03-26,11:49,Transfer Deposit,,,750.00,,"62,913.51",,K PLUS,,From X2079 MS. PORNPARN SIRIT++
+,23-03-26,11:49,Payment,55.00,,,,"62,858.51",,K PLUS,,Paid for Ref X3247 SCB มณี SHOP (โกเฮง ข้าวมันไก่)
+,27-03-26,11:57,Transfer Withdrawal,34.00,,,,"62,824.51",,K PLUS,,To X0644 MR. SUNGSUD APOK++
+,30-03-26,09:44,Transfer Withdrawal,200.00,,,,"62,624.51",,K PLUS,,To CIMBT X7246 RAKPHONG WAIRUNGR++
+,01-04-26,20:04,Transfer Deposit,,,"12,000.00",,"74,624.51",,K PLUS,,From X2079 MS. PORNPARN SIRIT++
+,04-04-26,11:32,Transfer Withdrawal,30.00,,,,"74,594.51",,K PLUS,,To PromptPay X8592 MAYUREE DON++
+,04-04-26,11:45,Payment,15.00,,,,"74,579.51",,K PLUS,,Paid for Ref XA96D ดรีมเวิลด์
+,04-04-26,14:53,Transfer Withdrawal,70.00,,,,"74,509.51",,K PLUS,,To X0238 MR. THUNTAKARN THA++
+,04-04-26,20:54,Transfer Deposit,,,293.00,,"74,802.51",,K PLUS,,From X4097 MS. KUNLAYAWADEE T++
+,04-04-26,20:55,Payment,877.18,,,,"73,925.33",,EDC/K SHOP/MYQR,,Paid for Ref X0001 สุกี้ตี๋น้อย-ดิ แอลลี รามอินทร (ชื่อบัญชี: บจก. บี เอ็น เอ็น เรสเตอรองท์ กรุ๊ป)
+,04-04-26,21:03,QR Transfer Deposit,,,293.00,,"74,218.33",,EDC/K SHOP/MYQR,,Ref Code KPP34227
+,04-04-26,23:35,Transfer Deposit,,,90.00,,"74,308.33",,K PLUS,,From X4097 MS. KUNLAYAWADEE T++
+,06-04-26,20:20,Payment,"16,184.75",,,,"58,123.58",,K PLUS,,Paid for Ref X5302 KBank Card
