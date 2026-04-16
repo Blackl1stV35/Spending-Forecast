@@ -220,7 +220,7 @@ def load_from_uploads(bank_uploads: list, cc_uploads: list) -> tuple[pd.DataFram
         frames = []
         for up in uploads:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-                tmp.write(up.read())
+                tmp.write(up.getvalue())
                 tmp_path = Path(tmp.name)
             df = parse_fn(tmp_path)
             os.unlink(tmp_path)
