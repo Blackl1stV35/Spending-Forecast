@@ -172,12 +172,19 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
         if lo is not None and hi is not None:
             band_x = list(hi.index) + list(lo.index[::-1])
             band_y = list(hi.values) + list(lo.values[::-1])
+            
+            # --- Convert the 6-digit hex into an RGBA string for transparency ---
+            h = c.lstrip('#')
+            r, g, b = tuple(int(h[j:j+2], 16) for j in (0, 2, 4))
+            rgba_color = f"rgba({r}, {g}, {b}, 0.12)" # 0.12 gives roughly 12% opacity
+            # --------------------------------------------------------------------
+
             fig.add_trace(
                 go.Scatter(
                     x=band_x,
                     y=band_y,
                     fill="toself",
-                    fillcolor=c + "20",
+                    fillcolor=rgba_color, # Use the compliant RGBA string here!
                     line_color="rgba(0,0,0,0)",
                     showlegend=False,
                     hoverinfo="skip",
@@ -195,7 +202,6 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
                 hovertemplate=f"{name}<br>%{{x|%b %Y}}<br>฿%{{y:,.0f}}<extra></extra>",
             )
         )
-
     fig.add_vline(
         x=series.index[-1],
         line_dash="dash",
