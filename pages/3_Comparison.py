@@ -1,12 +1,6 @@
-"""
-Comparison — side-by-side spending metrics for Kanokphan and Yensa.
-"""
-
 from __future__ import annotations
-
 import sys
 from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 
@@ -35,33 +29,19 @@ all_data = load_all(str(DATA_DIR))
 
 with st.sidebar:
     st.header("Options")
-    
-    # 1. Get all unique categories across all datasets
-    all_possible_cats = list(set(
-        cat
-        for df in all_data.values()
-        for cat in (df["Category"].unique() if not df.empty else [])
+    all_avail = sorted(set(
+        cat for df in all_data.values() if not df.empty
+        for cat in df["Category"].unique()
     ))
-    
-    # 2. Filter out any defaults that don't exist in the data
-    valid_defaults = [cat for cat in EXCLUDE_FROM_LIFESTYLE if cat in all_possible_cats]
-    
-    # 3. Render the multiselect safely
-    exclude_cats = st.multiselect(
-        "Exclude categories (both)",
-        all_possible_cats,
-        default=valid_defaults,
-    )
+    # BUG-1 fix: filter defaults to options present
+    safe_exc = [c for c in EXCLUDE_FROM_LIFESTYLE if c in all_avail]
+    exclude_cats = st.multiselect("Exclude categories (both)", all_avail, default=safe_exc)
 
-# Apply exclusions
-data = {}
-for p, df in all_data.items():
-    if df.empty:
-        data[p] = df
-    else:
-        data[p] = df[~df["Category"].isin(exclude_cats)]
+data = {
+    p: (df[~df["Category"].isin(exclude_cats)] if not df.empty else df)
+    for p, df in all_data.items()
+}
 
-# ── Summary metrics ────────────────────────────────────────────────────────────
 st.subheader("Summary")
 cols = st.columns(len(PEOPLE))
 for person, col in zip(PEOPLE, cols):
@@ -71,33 +51,26 @@ for person, col in zip(PEOPLE, cols):
         if df.empty:
             st.warning("No data.")
             continue
-        total = df["Amount"].sum()
-        n_mo = df["YearMonth"].nunique()
-        avg = total / n_mo if n_mo else 0
+        total   = df["Amount"].sum()
+        n_mo    = df["YearMonth"].nunique()
+        avg     = total / n_mo if n_mo else 0
         top_cat = df.groupby("Category")["Amount"].sum().idxmax()
-        n_tx = len(df)
-
-        st.metric("Total spend", f"฿{total:,.0f}")
-        st.metric("Avg / month", f"฿{avg:,.0f}")
-        st.metric("Transactions", f"{n_tx:,}")
+        st.metric("Total spend",    f"฿{total:,.0f}")
+        st.metric("Avg / month",    f"฿{avg:,.0f}")
+        st.metric("Transactions",   f"{len(df):,}")
         st.metric("Months covered", n_mo)
-        st.metric("Top category", top_cat)
+        st.metric("Top category",   top_cat)
 
 st.markdown("---")
-
-# ── Trend comparison ───────────────────────────────────────────────────────────
 st.subheader("Monthly spend — both people")
-series_map = {}
-for p in PEOPLE:
-    df = data[p]
-    if not df.empty:
-        series_map[p] = prepare_monthly_series(df)
+series_map = {
+    p: prepare_monthly_series(df)
+    for p, df in data.items() if not df.empty
+}
 if series_map:
     st.plotly_chart(comparison_chart(series_map), use_container_width=True)
 
 st.markdown("---")
-
-# ── Per-person category charts ─────────────────────────────────────────────────
 st.subheader("Category breakdown")
 col1, col2 = st.columns(2)
 for person, col in zip(PEOPLE, [col1, col2]):
@@ -112,35 +85,24 @@ for person, col in zip(PEOPLE, [col1, col2]):
                 st.plotly_chart(category_bar(df, top_n=8), use_container_width=True)
 
 st.markdown("---")
-
-# ── Category comparison table ──────────────────────────────────────────────────
 st.subheader("Category comparison table")
-
-all_cats = sorted(
-    set(cat for df in data.values() if not df.empty for cat in df["Category"].unique())
-)
-
+all_cats = sorted(set(
+    cat for df in data.values() if not df.empty
+    for cat in df["Category"].unique()
+))
 rows = []
 for cat in all_cats:
     row: dict = {"Category": cat}
     for p in PEOPLE:
         df = data[p]
-        if df.empty:
-            row[p] = "—"
-        else:
-            val = df[df["Category"] == cat]["Amount"].sum()
-            row[p] = f"฿{val:,.0f}" if val > 0 else "—"
+        val = df[df["Category"] == cat]["Amount"].sum() if not df.empty else 0
+        row[p] = f"฿{val:,.0f}" if val > 0 else "—"
     rows.append(row)
-
 if rows:
     comp_df = pd.DataFrame(rows)
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
-
-# ── Download ───────────────────────────────────────────────────────────────────
-if rows:
     st.download_button(
         "⬇ Download comparison table (CSV)",
-        pd.DataFrame(rows).to_csv(index=False).encode("utf-8"),
-        "comparison_table.csv",
-        "text/csv",
+        comp_df.to_csv(index=False).encode("utf-8"),
+        "comparison_table.csv", "text/csv",
     )

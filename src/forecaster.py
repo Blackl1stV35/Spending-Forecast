@@ -39,9 +39,36 @@ def _future_index(series: pd.Series, n: int) -> pd.DatetimeIndex:
     )
 
 
+def clip_outliers(series: pd.Series, method: str = "iqr") -> pd.Series:
+    """
+    Cap extreme monthly spending spikes while preserving the datetime index.
+
+    method="iqr"        — upper cap = Q3 + 1.5 * IQR  (robust on short series)
+    method="percentile" — upper cap = 90th percentile  (softer)
+
+    The cap is never set below the median so the series is never degenerate.
+    """
+    if series.empty or len(series) < 3:
+        return series
+
+    if method == "iqr":
+        q1  = series.quantile(0.25)
+        q3  = series.quantile(0.75)
+        upper = q3 + 1.5 * (q3 - q1)
+    else:
+        upper = series.quantile(0.90)
+
+    upper = max(upper, series.median())
+    clipped = series.clip(upper=upper)
+    clipped.index = series.index  # guarantee index preserved
+    return clipped
+
+
 def prepare_monthly_series(
     df: pd.DataFrame,
     exclude_categories: list[str] | None = None,
+    clip: bool = False,
+    clip_method: str = "iqr",
 ) -> pd.Series:
     """Aggregate spending to monthly totals (Month-Start index)."""
     if df.empty:
@@ -51,6 +78,8 @@ def prepare_monthly_series(
         filtered = filtered[~filtered["Category"].isin(exclude_categories)]
     monthly = filtered.groupby("YearMonth")["Amount"].sum().sort_index()
     monthly.index = pd.DatetimeIndex(monthly.index)
+    if clip:
+        monthly = clip_outliers(monthly, method=clip_method)
     return monthly
 
 
@@ -208,15 +237,24 @@ def prophet_forecast(series: pd.Series, n_months: int = 3) -> tuple:
 
 
 def run_all_forecasts(series: pd.Series, n_months: int = 3) -> dict:
-    """Run every available model and return dict of results."""
-    results = {
-        "Rolling avg": rolling_forecast(series, n_months),
-        "ETS (Holt)": ets_forecast(series, n_months),
-        "ARIMA(1,1,1)": arima_forecast(series, n_months),
-        "Ridge": ridge_forecast(series, n_months),
-    }
-    if PROPHET_AVAILABLE and len(series) >= 6:
-        results["Prophet"] = prophet_forecast(series, n_months)
+    """
+    Run forecasting models conditioned on available data length.
+
+    < 24 months: Rolling avg + ETS only (ARIMA/Ridge/Prophet overfit on short series)
+    >= 24 months: full suite
+    """
+    results: dict = {}
+
+    # Always safe at any length
+    results["Rolling avg"] = rolling_forecast(series, n_months)
+    results["ETS (Holt)"]  = ets_forecast(series, n_months)
+
+    if len(series) >= 24:
+        results["ARIMA(1,1,1)"] = arima_forecast(series, n_months)
+        results["Ridge"]        = ridge_forecast(series, n_months)
+        if PROPHET_AVAILABLE:
+            results["Prophet"]  = prophet_forecast(series, n_months)
+
     return {k: v for k, v in results.items() if v[0] is not None}
 
 

@@ -1,41 +1,32 @@
 """
-Persistent override store for manual and LLM-assisted merchant categorisation.
+Persistent override store — dual write: local JSON + Supabase.
 
-Storage format: data/manual_overrides.json
-{
-  "merchant_lower_key": {
-    "category":    "Food & Dining",
-    "source":      "manual" | "llm_accepted" | "llm_auto",
-    "original":    "SCB มณี SHOP (โกเฮง ข้าวมันไก่)",
-    "approved_at": "2026-04-15T12:34:56"
-  },
-  ...
-}
+Local JSON (data/manual_overrides.json) is the primary source of truth
+so the app works fully offline.  Supabase is synced on every write so
+state survives Streamlit Cloud redeployments and is shared across sessions.
 
-The store key is the lowercase-stripped merchant string so lookups are
-case-insensitive.  Partial / substring matching is done at apply-time so
-one override entry can resolve many variant spellings of the same merchant.
+Read priority: Supabase (if available) → local JSON fallback.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from src.config import DATA_DIR
+import src.supabase_store as _sb
 
-OVERRIDES_PATH = DATA_DIR / "manual_overrides.json"
+try:
+    from src.config import DATA_DIR
+    OVERRIDES_PATH = DATA_DIR / "manual_overrides.json"
+except ImportError:
+    OVERRIDES_PATH = Path("data/manual_overrides.json")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Load / save
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Local JSON helpers ────────────────────────────────────────────────────────
 
-def load_overrides(path: Path | None = None) -> dict[str, dict]:
-    """Return the full overrides dict.  Returns {} if file absent."""
+def _load_local(path: Path | None = None) -> dict[str, dict]:
     p = Path(path or OVERRIDES_PATH)
     if not p.exists():
         return {}
@@ -46,8 +37,7 @@ def load_overrides(path: Path | None = None) -> dict[str, dict]:
         return {}
 
 
-def save_overrides(overrides: dict[str, dict], path: Path | None = None) -> None:
-    """Atomically write the overrides dict to disk."""
+def _save_local(overrides: dict[str, dict], path: Path | None = None) -> None:
     p = Path(path or OVERRIDES_PATH)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".json.tmp")
@@ -56,37 +46,49 @@ def save_overrides(overrides: dict[str, dict], path: Path | None = None) -> None
     tmp.replace(p)
 
 
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def load_overrides(path: Path | None = None) -> dict[str, dict]:
+    """
+    Load overrides.  Reads from Supabase if available (most up-to-date),
+    falls back to local JSON.
+    """
+    if _sb.is_available():
+        remote = _sb.fetch_overrides()
+        if remote:
+            # Keep local JSON in sync for offline fallback
+            _save_local(remote, path)
+            return remote
+
+    return _load_local(path)
+
+
+def save_overrides(overrides: dict[str, dict], path: Path | None = None) -> None:
+    """Write overrides to local JSON only (bulk replace — used by legacy callers)."""
+    _save_local(overrides, path)
+
+
 def upsert(
     merchant_original: str,
     category: str,
     source: str = "manual",
     path: Path | None = None,
 ) -> dict[str, dict]:
-    """
-    Add or update a single merchant→category mapping and save immediately.
-
-    Parameters
-    ----------
-    merchant_original : str
-        The raw merchant string from the transaction (any case).
-    category : str
-        Target category label.
-    source : "manual" | "llm_accepted" | "llm_auto"
-    path : optional override file path
-
-    Returns
-    -------
-    The updated overrides dict.
-    """
-    overrides = load_overrides(path)
+    """Add/update one merchant mapping.  Writes to both local JSON and Supabase."""
+    # Local
+    overrides = _load_local(path)
     key = merchant_original.strip().lower()
     overrides[key] = {
-        "category": category,
-        "source": source,
-        "original": merchant_original.strip(),
+        "category":    category,
+        "source":      source,
+        "original":    merchant_original.strip(),
         "approved_at": datetime.now(timezone.utc).isoformat(),
     }
-    save_overrides(overrides, path)
+    _save_local(overrides, path)
+
+    # Supabase (best-effort)
+    _sb.upsert_override(merchant_original, category, source)
+
     return overrides
 
 
@@ -95,57 +97,35 @@ def bulk_upsert(
     source: str = "llm_accepted",
     path: Path | None = None,
 ) -> dict[str, dict]:
-    """
-    Save multiple merchant→category mappings at once.
-
-    Parameters
-    ----------
-    mappings : {merchant_original: category}
-    source   : source label for all entries
-    """
-    overrides = load_overrides(path)
+    """Bulk add/update merchant mappings."""
+    overrides = _load_local(path)
     ts = datetime.now(timezone.utc).isoformat()
     for merchant, category in mappings.items():
         key = merchant.strip().lower()
         overrides[key] = {
-            "category": category,
-            "source": source,
-            "original": merchant.strip(),
+            "category":    category,
+            "source":      source,
+            "original":    merchant.strip(),
             "approved_at": ts,
         }
-    save_overrides(overrides, path)
+    _save_local(overrides, path)
+    _sb.bulk_upsert_overrides(mappings, source)
     return overrides
 
 
 def delete(merchant_original: str, path: Path | None = None) -> dict[str, dict]:
-    """Remove a single merchant override entry."""
-    overrides = load_overrides(path)
+    """Remove one override entry."""
+    overrides = _load_local(path)
     key = merchant_original.strip().lower()
     overrides.pop(key, None)
-    save_overrides(overrides, path)
+    _save_local(overrides, path)
+    _sb.delete_override(merchant_original)
     return overrides
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Apply overrides to a DataFrame
-# ─────────────────────────────────────────────────────────────────────────────
-
-def apply_overrides(
-    df,          # pd.DataFrame with 'Merchant' and 'Category' columns
-    overrides: dict[str, dict] | None = None,
-) -> "pd.DataFrame":  # noqa: F821 — avoid circular import
-    """
-    Apply the stored overrides to the spending DataFrame.
-
-    Matching uses two passes:
-      1. Exact key match (merchant.lower() == key)
-      2. Substring match (key in merchant.lower()) for partial names
-
-    Only rows currently in 'Other' are updated, preserving all keyword-rule
-    assignments made earlier in the pipeline.
-    """
-    import pandas as pd  # local import avoids circular dependency
-
+def apply_overrides(df, overrides: dict[str, dict] | None = None):
+    """Apply overrides to a spending DataFrame.  Only updates 'Other' rows."""
+    import pandas as pd
     if overrides is None:
         overrides = load_overrides()
     if not overrides or df.empty:
@@ -158,27 +138,16 @@ def apply_overrides(
         cat = entry.get("category", "Other")
         if cat == "Other":
             continue
-
-        # Pass 1: exact match
-        exact = merchant_lower == key
-        # Pass 2: substring match (only for rows still in 'Other')
-        substr = (~exact) & merchant_lower.str.contains(
-            key, regex=False, na=False
-        )
-
-        mask = (exact | substr) & (df["Category"] == "Other")
+        exact  = merchant_lower == key
+        substr = (~exact) & merchant_lower.str.contains(key, regex=False, na=False)
+        mask   = (exact | substr) & (df["Category"] == "Other")
         if mask.any():
             df.loc[mask, "Category"] = cat
 
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Stats helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
 def override_stats(overrides: dict[str, dict]) -> dict[str, Any]:
-    """Return summary counts broken down by source."""
     counts: dict[str, int] = {"manual": 0, "llm_accepted": 0, "llm_auto": 0}
     for entry in overrides.values():
         src = entry.get("source", "manual")
