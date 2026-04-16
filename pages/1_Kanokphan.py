@@ -11,6 +11,7 @@ from src.parsers import load_person_data, load_from_uploads
 from src.categoriser import get_spending_df
 from src.charts import (category_bar, category_donut, category_monthly_stack,
                          calendar_heatmap, monthly_trend_chart, waterfall_chart)
+from src.supabase_store import upload_csv, is_available
 
 PERSON = "Kanokphan"
 st.set_page_config(page_title=f"{PERSON} — Spending", page_icon="📊", layout="wide")
