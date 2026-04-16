@@ -225,8 +225,9 @@ if run_llm:
             )
         except Exception as exc:
             progress.empty()
-            st.error(f"Groq API error: {exc}")
-
+            
+            print(f"Groq API error details: {exc}")
+            st.error("Groq API error: Authentication failed or bad request. Please check your API key.", icon="🔒")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Bulk-accept high-confidence suggestions
