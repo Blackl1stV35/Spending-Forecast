@@ -11,6 +11,7 @@ from src.parsers import load_person_data, load_from_uploads
 from src.categoriser import get_spending_df
 from src.charts import (category_bar, category_donut, category_monthly_stack,
                          calendar_heatmap, monthly_trend_chart, waterfall_chart)
+from src.supabase_store import upload_csv, is_available
 
 PERSON = "Yensa"
 st.set_page_config(page_title=f"{PERSON} — Spending", page_icon="📊", layout="wide")
@@ -32,8 +33,14 @@ with st.sidebar:
     up_cc   = st.file_uploader("Credit card CSVs",    type="csv",
                                 accept_multiple_files=True, key="y_cc")
     if up_bank or up_cc:
+        # ← NEW: Persist to Supabase (only runs if secrets are configured)
+        if is_available():
+            for up in (up_bank or []):
+                upload_csv("Yensa", "bank", up.name, up.getvalue())
+            for up in (up_cc or []):
+                upload_csv("Yensa", "cc", up.name, up.getvalue())
         bank_df, cc_df = load_from_uploads(up_bank or [], up_cc or [])
-        st.success(f"Loaded {len(up_bank or [])} bank + {len(up_cc or [])} CC file(s)", icon="✅")
+        st.success(f"Loaded {len(up_bank or [])} bank + {len(up_cc or [])} CC file(s) ✅ Saved to Supabase", icon="✅")
 
     st.divider()
     st.header("Filters")
