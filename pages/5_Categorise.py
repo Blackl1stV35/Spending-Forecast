@@ -71,7 +71,7 @@ with st.sidebar:
     if not GROQ_AVAILABLE:
         st.error("groq package not installed.\n\nRun: `pip install groq`")
     elif api_key:
-        st.success("API key set", icon="✓")
+        st.success("API key set", icon="✅")
     else:
         st.warning("Enter a Groq API key to enable LLM suggestions.")
 
