@@ -306,12 +306,22 @@ def calendar_heatmap(df: pd.DataFrame, person: str) -> go.Figure:
     z = pivot.values.astype(float)
     z[z == 0] = float("nan")
 
+    # 1. Get the base hex color
+    base_hex = _color(person)
+    
+    # 2. Convert base hex to RGBA for the 60% opacity midpoint
+    h = base_hex.lstrip('#')
+    r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+    mid_rgba = f"rgba({r}, {g}, {b}, 0.6)"
+
+    # 3. Draw the Heatmap
     fig = go.Figure(
         go.Heatmap(
             z=z,
             x=month_labels,
             y=list(all_days),
-            colorscale=[[0, "#F1EFE8"], [0.5, _color(person) + "99"], [1, _color(person)]],
+            # Use the compliant RGBA string for the 0.5 midpoint
+            colorscale=[[0, "#F1EFE8"], [0.5, mid_rgba], [1, base_hex]],
             showscale=True,
             hoverongaps=False,
             hovertemplate="<b>%{x} %{y}</b><br>฿%{z:,.0f}<extra></extra>",
