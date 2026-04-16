@@ -10,7 +10,7 @@ groq>=1.1.0
 supabase>=2.4.0
 
 # Optional — semantic RAG cache (improves cache hit rate beyond exact-hash match)
-# sentence-transformers>=2.6.0
+sentence-transformers>=2.6.0
 
 # Optional — enable Prophet forecasting (requires C++ compiler)
-# prophet>=1.1.5
+prophet>=1.1.5
