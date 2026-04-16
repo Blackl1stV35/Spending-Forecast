@@ -329,19 +329,27 @@ def upload_csv(person: str, source_type: str, filename: str, content: bytes) -> 
         return None
 
 
-def list_csv_files(person: str) -> list[dict]:
-    """Return list of uploaded CSVs for a person."""
+def list_csv_files(person: str, source_type: str | None = None) -> list[dict]:
+    """
+    Return list of uploaded CSVs for a person.
+
+    Parameters
+    ----------
+    person      : "Kanokphan" | "Yensa"
+    source_type : "bank" | "cc" | None (None returns all types)
+    """
     client = get_client()
     if client is None:
         return []
     try:
-        resp = (
+        q = (
             client.table("csv_files")
             .select("*")
             .eq("person", person)
-            .order("uploaded_at", desc=True)
-            .execute()
         )
+        if source_type is not None:
+            q = q.eq("source_type", source_type)
+        resp = q.order("uploaded_at", desc=True).execute()
         return resp.data or []
     except Exception:
         return []
