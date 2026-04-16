@@ -37,6 +37,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.config import BANK_CATEGORIES, CC_CATEGORIES
+from src.overrides_store import apply_overrides, load_overrides
 
 # ─────────────────────────────────────────────────────────────────────────────
 # EXCLUSION: true double-count + investment flows only
@@ -433,6 +434,11 @@ def get_spending_df(bank_df: pd.DataFrame, cc_df: pd.DataFrame) -> pd.DataFrame:
             f"(฿{excluded_amt:,.0f}) — CC payments / investment."
         )
     combined = combined[~exclude_mask].copy()
+
+    # Layer 4: apply human/LLM-approved overrides from persistent store
+    overrides = load_overrides()
+    if overrides:
+        combined = apply_overrides(combined, overrides)
 
     combined["YearMonth"] = combined["Date"].dt.to_period("M").dt.to_timestamp()
     combined["DayOfWeek"] = combined["Date"].dt.day_name()

@@ -172,17 +172,12 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
         if lo is not None and hi is not None:
             band_x = list(hi.index) + list(lo.index[::-1])
             band_y = list(hi.values) + list(lo.values[::-1])
-        
-            h = c.lstrip('#')
-            r, g, b = tuple(int(h[j:j+2], 16) for j in (0, 2, 4))
-            rgba_color = f"rgba({r}, {g}, {b}, 0.12)" 
-
             fig.add_trace(
                 go.Scatter(
                     x=band_x,
                     y=band_y,
                     fill="toself",
-                    fillcolor=rgba_color,  
+                    fillcolor=c + "20",
                     line_color="rgba(0,0,0,0)",
                     showlegend=False,
                     hoverinfo="skip",
@@ -206,17 +201,9 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
         line_dash="dash",
         line_color="#B4B2A9",
         line_width=1,
-    )
-
-    fig.add_annotation(
-        x=series.index[-1],
-        y=1,
-        yref="paper",
-        text=" forecast →",
-        showarrow=False,
-        xanchor="left",
-        yanchor="bottom",
-        font=dict(size=11),
+        annotation_text=" forecast →",
+        annotation_position="top right",
+        annotation_font_size=11,
     )
 
     fig.update_layout(
@@ -261,94 +248,33 @@ def comparison_chart(series_dict: dict) -> go.Figure:
 
 
 def calendar_heatmap(df: pd.DataFrame, person: str) -> go.Figure:
-    """
-    Spending heatmap: Y-axis = day of month (1–31), X-axis = calendar month (Jan–Dec).
-    Cell value = sum of Amount for that day/month combination across all years.
-
-    More intuitive than the ISO-week variant because it maps directly to how
-    people think about their monthly spending rhythm.
-    """
+    """Weekly heatmap: rows = day of week, columns = ISO week number."""
     if df.empty:
         return go.Figure()
 
     d = df.copy()
-    d["Day"] = d["Date"].dt.day                      # 1–31
-    d["MonthNum"] = d["Date"].dt.month               # 1–12
-    d["MonthLabel"] = d["Date"].dt.strftime("%b")    # "Jan" … "Dec"
+    d["DOW"] = d["Date"].dt.dayofweek
+    d["Week"] = d["Date"].dt.isocalendar().week.astype(int)
 
-    # Aggregate: sum over all years for each (day, month) cell
-    agg = (
-        d.groupby(["Day", "MonthNum", "MonthLabel"])["Amount"]
-        .sum()
-        .reset_index()
-    )
+    pivot = d.pivot_table(values="Amount", index="DOW", columns="Week", aggfunc="sum", fill_value=0)
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-    # Build a full 31×12 grid so the heatmap is always rectangular
-    all_days = range(1, 32)
-    all_months = list(range(1, 13))
-    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-    # Pivot: rows = day (1–31), cols = month (1–12)
-    pivot = (
-        agg.pivot_table(
-            values="Amount",
-            index="Day",
-            columns="MonthNum",
-            aggfunc="sum",
-            fill_value=0,
-        )
-        .reindex(index=all_days, columns=all_months, fill_value=0)
-    )
-
-    # Replace 0 with NaN for invalid days (e.g. Feb 30) so they render blank
-    # Mark cells as NaN when no transaction ever landed on that calendar slot
-    z = pivot.values.astype(float)
-    z[z == 0] = float("nan")
-
-    # 1. Get the base hex color
-    base_hex = _color(person)
-    
-    # 2. Convert base hex to RGBA for the 60% opacity midpoint
-    h = base_hex.lstrip('#')
-    r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-    mid_rgba = f"rgba({r}, {g}, {b}, 0.6)"
-
-    # 3. Draw the Heatmap
     fig = go.Figure(
         go.Heatmap(
-            z=z,
-            x=month_labels,
-            y=list(all_days),
-            # Use the compliant RGBA string for the 0.5 midpoint
-            colorscale=[[0, "#F1EFE8"], [0.5, mid_rgba], [1, base_hex]],
+            z=pivot.values,
+            x=pivot.columns.tolist(),
+            y=[days[i] for i in pivot.index],
+            colorscale=[[0, "#F1EFE8"], [1, _color(person)]],
+            hovertemplate="Wk %{x}, %{y}<br>฿%{z:,.0f}<extra></extra>",
             showscale=True,
-            hoverongaps=False,
-            hovertemplate="<b>%{x} %{y}</b><br>฿%{z:,.0f}<extra></extra>",
-            colorbar=dict(
-                tickformat=",.0f",
-                title=dict(text="฿", side="right"),
-                thickness=12,
-            ),
         )
     )
-
     fig.update_layout(
         template=_TPL,
-        xaxis=dict(
-            title="",
-            side="top",
-            tickmode="array",
-            tickvals=month_labels,
-        ),
-        yaxis=dict(
-            title="Day of month",
-            autorange="reversed",    # day 1 at the top
-            dtick=5,
-            tickmode="linear",
-        ),
-        height=520,
-        margin=dict(l=40, r=40, t=40, b=10),
+        xaxis_title="ISO week",
+        yaxis_title="",
+        height=230,
+        margin=_MARG,
     )
     return fig
 

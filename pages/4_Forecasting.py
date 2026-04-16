@@ -72,13 +72,6 @@ if df.empty:
 
 series = prepare_monthly_series(df, exclude_categories=exclude_cats)
 
-if len(series) < 24:
-    st.info(
-        f"Running **baseline models only** (Rolling avg + ETS) — "
-        f"{len(series)} months available, need 24 for full suite.",
-        icon="ℹ️",
-    )
-
 if len(series) < 3:
     st.warning(f"Need at least 3 months of data (found {len(series)}). Add more CSV files.")
     st.stop()

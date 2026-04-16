@@ -42,8 +42,6 @@ def _future_index(series: pd.Series, n: int) -> pd.DatetimeIndex:
 def prepare_monthly_series(
     df: pd.DataFrame,
     exclude_categories: list[str] | None = None,
-    clip: bool = False,
-    clip_method: str = "iqr",
 ) -> pd.Series:
     """Aggregate spending to monthly totals (Month-Start index)."""
     if df.empty:
@@ -53,45 +51,8 @@ def prepare_monthly_series(
         filtered = filtered[~filtered["Category"].isin(exclude_categories)]
     monthly = filtered.groupby("YearMonth")["Amount"].sum().sort_index()
     monthly.index = pd.DatetimeIndex(monthly.index)
-    if clip:
-        monthly = clip_outliers(monthly, method=clip_method)
     return monthly
 
-def clip_outliers(series: pd.Series, method: str = "iqr") -> pd.Series:
-    """
-    Cap extreme monthly spending spikes while preserving the datetime index.
-
-    Parameters
-    ----------
-    series : pd.Series
-        Monthly spending totals with a DatetimeIndex.
-    method : "iqr" | "percentile"
-        "iqr"        — upper cap = Q3 + 1.5 × IQR  (more aggressive, better for
-                        short series with one dominant outlier month)
-        "percentile" — upper cap = 90th percentile  (softer, needs ≥10 points
-                        to be meaningful)
-
-    Returns
-    -------
-    pd.Series
-        Clipped series with the original DatetimeIndex intact.
-    """
-    if series.empty or len(series) < 3:
-        return series
-
-    if method == "iqr":
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-        iqr = q3 - q1
-        upper = q3 + 1.5 * iqr
-    else:  
-        upper = series.quantile(0.90)
-
-    upper = max(upper, series.median())
-
-    clipped = series.clip(upper=upper)
-    clipped.index = series.index          
-    return clipped
 
 def rolling_forecast(
     series: pd.Series,
@@ -245,31 +206,19 @@ def prophet_forecast(series: pd.Series, n_months: int = 3) -> tuple:
     except Exception:
         return ets_forecast(series, n_months)
 
+
 def run_all_forecasts(series: pd.Series, n_months: int = 3) -> dict:
-    """
-    Run forecasting models conditioned on available data length.
-
-    Regime rules
-    ------------
-    < 24 months  →  baseline only: Rolling avg + ETS (Holt)
-                    Rationale: ARIMA needs ≥2 seasonal cycles to identify
-                    parameters reliably; Ridge/Prophet overfit on short series.
-    ≥ 24 months  →  full suite: Rolling avg, ETS, ARIMA, Ridge, Prophet
-    """
-    SHORT_REGIME = len(series) < 24
-
-    results: dict = {}
-
-    results["Rolling avg"] = rolling_forecast(series, n_months)
-    results["ETS (Holt)"] = ets_forecast(series, n_months)
-
-    if not SHORT_REGIME:
-        results["ARIMA(1,1,1)"] = arima_forecast(series, n_months)
-        results["Ridge"] = ridge_forecast(series, n_months)
-        if PROPHET_AVAILABLE:
-            results["Prophet"] = prophet_forecast(series, n_months)
-
+    """Run every available model and return dict of results."""
+    results = {
+        "Rolling avg": rolling_forecast(series, n_months),
+        "ETS (Holt)": ets_forecast(series, n_months),
+        "ARIMA(1,1,1)": arima_forecast(series, n_months),
+        "Ridge": ridge_forecast(series, n_months),
+    }
+    if PROPHET_AVAILABLE and len(series) >= 6:
+        results["Prophet"] = prophet_forecast(series, n_months)
     return {k: v for k, v in results.items() if v[0] is not None}
+
 
 def leave_n_out_cv(series: pd.Series, n_test: int = 3) -> pd.DataFrame:
     """
