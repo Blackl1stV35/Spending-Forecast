@@ -245,19 +245,31 @@ def prophet_forecast(series: pd.Series, n_months: int = 3) -> tuple:
     except Exception:
         return ets_forecast(series, n_months)
 
-
 def run_all_forecasts(series: pd.Series, n_months: int = 3) -> dict:
-    """Run every available model and return dict of results."""
-    results = {
-        "Rolling avg": rolling_forecast(series, n_months),
-        "ETS (Holt)": ets_forecast(series, n_months),
-        "ARIMA(1,1,1)": arima_forecast(series, n_months),
-        "Ridge": ridge_forecast(series, n_months),
-    }
-    if PROPHET_AVAILABLE and len(series) >= 6:
-        results["Prophet"] = prophet_forecast(series, n_months)
-    return {k: v for k, v in results.items() if v[0] is not None}
+    """
+    Run forecasting models conditioned on available data length.
 
+    Regime rules
+    ------------
+    < 24 months  →  baseline only: Rolling avg + ETS (Holt)
+                    Rationale: ARIMA needs ≥2 seasonal cycles to identify
+                    parameters reliably; Ridge/Prophet overfit on short series.
+    ≥ 24 months  →  full suite: Rolling avg, ETS, ARIMA, Ridge, Prophet
+    """
+    SHORT_REGIME = len(series) < 24
+
+    results: dict = {}
+
+    results["Rolling avg"] = rolling_forecast(series, n_months)
+    results["ETS (Holt)"] = ets_forecast(series, n_months)
+
+    if not SHORT_REGIME:
+        results["ARIMA(1,1,1)"] = arima_forecast(series, n_months)
+        results["Ridge"] = ridge_forecast(series, n_months)
+        if PROPHET_AVAILABLE:
+            results["Prophet"] = prophet_forecast(series, n_months)
+
+    return {k: v for k, v in results.items() if v[0] is not None}
 
 def leave_n_out_cv(series: pd.Series, n_test: int = 3) -> pd.DataFrame:
     """
