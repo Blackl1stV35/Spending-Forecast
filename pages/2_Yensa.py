@@ -53,7 +53,15 @@ with st.sidebar:
     sources = st.multiselect("Data source", ["bank", "cc"], default=["bank", "cc"])
     _tmp = get_spending_df(bank_df, cc_df)
     all_cats = sorted(_tmp["Category"].unique().tolist()) if not _tmp.empty else []
-    exclude_cats = st.multiselect("Exclude categories", all_cats, default=EXCLUDE_FROM_LIFESTYLE)
+    # Filter out any default categories that aren't in the available options for Yensa
+    valid_defaults = [cat for cat in EXCLUDE_FROM_LIFESTYLE if cat in all_cats]
+    
+    # Pass the filtered list as the default
+    exclude_cats = st.multiselect(
+        "Exclude categories", 
+        all_cats, 
+        default=valid_defaults
+    )
 
     date_col = st.container()
 
