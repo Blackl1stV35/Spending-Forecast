@@ -35,16 +35,16 @@ with st.sidebar:
         if is_available():
             try:
                 for up in (up_bank or []):
-                    upload_csv("Kanokphan", "bank", up.name, up.getvalue())
-                    st.info(f"✅ Uploaded to Supabase: {up.name} (bank)")
+                    result = upload_csv("Kanokphan", "bank", up.name, up.getvalue())
+                    st.info(f"✅ Uploaded bank: {up.name} | Result: {result}")
                 for up in (up_cc or []):
-                    upload_csv("Kanokphan", "cc", up.name, up.getvalue())
-                    st.info(f"✅ Uploaded to Supabase: {up.name} (cc)")
+                    result = upload_csv("Kanokphan", "cc", up.name, up.getvalue())
+                    st.info(f"✅ Uploaded cc: {up.name} | Result: {result}")
             except Exception as e:
-                st.error(f"Supabase upload failed: {str(e)}")
-                st.exception(e)   # shows full traceback
+                st.error(f"❌ Supabase upload failed: {str(e)}")
+                st.exception(e)  # Shows full traceback
         else:
-            st.warning("Supabase not available — data is session-only")
+            st.warning("Supabase not available")
     
         bank_df, cc_df = load_from_uploads(up_bank or [], up_cc or [])
         st.success(f"Loaded {len(up_bank or [])} bank + {len(up_cc or [])} CC file(s)")
