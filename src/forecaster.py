@@ -42,6 +42,8 @@ def _future_index(series: pd.Series, n: int) -> pd.DatetimeIndex:
 def prepare_monthly_series(
     df: pd.DataFrame,
     exclude_categories: list[str] | None = None,
+    clip: bool = False,
+    clip_method: str = "iqr",
 ) -> pd.Series:
     """Aggregate spending to monthly totals (Month-Start index)."""
     if df.empty:
@@ -51,8 +53,45 @@ def prepare_monthly_series(
         filtered = filtered[~filtered["Category"].isin(exclude_categories)]
     monthly = filtered.groupby("YearMonth")["Amount"].sum().sort_index()
     monthly.index = pd.DatetimeIndex(monthly.index)
+    if clip:
+        monthly = clip_outliers(monthly, method=clip_method)
     return monthly
 
+def clip_outliers(series: pd.Series, method: str = "iqr") -> pd.Series:
+    """
+    Cap extreme monthly spending spikes while preserving the datetime index.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Monthly spending totals with a DatetimeIndex.
+    method : "iqr" | "percentile"
+        "iqr"        — upper cap = Q3 + 1.5 × IQR  (more aggressive, better for
+                        short series with one dominant outlier month)
+        "percentile" — upper cap = 90th percentile  (softer, needs ≥10 points
+                        to be meaningful)
+
+    Returns
+    -------
+    pd.Series
+        Clipped series with the original DatetimeIndex intact.
+    """
+    if series.empty or len(series) < 3:
+        return series
+
+    if method == "iqr":
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+        upper = q3 + 1.5 * iqr
+    else:  
+        upper = series.quantile(0.90)
+
+    upper = max(upper, series.median())
+
+    clipped = series.clip(upper=upper)
+    clipped.index = series.index          
+    return clipped
 
 def rolling_forecast(
     series: pd.Series,
