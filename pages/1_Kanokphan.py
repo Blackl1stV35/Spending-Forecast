@@ -17,6 +17,7 @@ PERSON = "Kanokphan"
 st.set_page_config(page_title=f"{PERSON} — Spending", page_icon="📊", layout="wide")
 st.title(f"📊 {PERSON} — spending analysis")
 
+st.write("Debug: Supabase available =", is_available())
 
 @st.cache_data(show_spinner="Parsing files…")
 def _load(d: str):
