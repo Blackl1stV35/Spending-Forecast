@@ -35,14 +35,22 @@ all_data = load_all(str(DATA_DIR))
 
 with st.sidebar:
     st.header("Options")
+    
+    # 1. Get all unique categories across all datasets
+    all_possible_cats = list(set(
+        cat
+        for df in all_data.values()
+        for cat in (df["Category"].unique() if not df.empty else [])
+    ))
+    
+    # 2. Filter out any defaults that don't exist in the data
+    valid_defaults = [cat for cat in EXCLUDE_FROM_LIFESTYLE if cat in all_possible_cats]
+    
+    # 3. Render the multiselect safely
     exclude_cats = st.multiselect(
         "Exclude categories (both)",
-        list(set(
-            cat
-            for df in all_data.values()
-            for cat in (df["Category"].unique() if not df.empty else [])
-        )),
-        default=EXCLUDE_FROM_LIFESTYLE,
+        all_possible_cats,
+        default=valid_defaults,
     )
 
 # Apply exclusions
