@@ -221,7 +221,7 @@ if run_llm:
             st.session_state.llm_suggestions = suggestions
             progress.empty()
             st.success(
-                f"Got suggestions for {len(suggestions)} merchants.", icon="✓"
+                f"Got suggestions for {len(suggestions)} merchants.", icon="✅"
             )
         except Exception as exc:
             progress.empty()
@@ -250,7 +250,7 @@ if high_conf:
             mappings = {m: s["category"] for m, s in high_conf.items()}
             bulk_upsert(mappings, source="llm_accepted")
             st.cache_data.clear()
-            st.success(f"Saved {len(mappings)} mappings.", icon="✓")
+            st.success(f"Saved {len(mappings)} mappings.", icon="✅")
             st.rerun()
 
 st.markdown("---")
@@ -353,7 +353,7 @@ with tab_unresolved:
             if to_save:
                 bulk_upsert(to_save, source="manual")
                 st.cache_data.clear()
-                st.success(f"Saved {len(to_save)} merchant mappings.", icon="✓")
+                st.success(f"Saved {len(to_save)} merchant mappings.", icon="✅")
                 st.rerun()
             else:
                 st.info("No non-'Other' categories selected yet.")
