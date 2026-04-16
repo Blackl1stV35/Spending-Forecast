@@ -154,11 +154,9 @@ def get_spending_df(bank_df: pd.DataFrame, cc_df: pd.DataFrame) -> pd.DataFrame:
     combined = pd.concat(frames, ignore_index=True)
     combined["Date"] = pd.to_datetime(combined["Date"])
 
-    # ── Patch 1a: drop internal transfers ────────────────────────────────────
     transfer_mask = combined["Merchant"].apply(_is_internal_transfer)
     combined = combined[~transfer_mask].copy()
 
-    # ── Patch 1b: apply merchant override dict to shrink 'Other' bucket ──────
     combined["Category"] = combined.apply(
         lambda r: _apply_merchant_overrides(r["Category"], r["Merchant"]),
         axis=1,
