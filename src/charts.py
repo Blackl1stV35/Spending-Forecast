@@ -202,14 +202,24 @@ def forecast_chart(series: pd.Series, forecasts: dict, person: str) -> go.Figure
                 hovertemplate=f"{name}<br>%{{x|%b %Y}}<br>฿%{{y:,.0f}}<extra></extra>",
             )
         )
+    # 1. Draw the line ONLY (remove all annotation_ arguments)
     fig.add_vline(
         x=series.index[-1],
         line_dash="dash",
         line_color="#B4B2A9",
         line_width=1,
-        annotation_text=" forecast →",
-        annotation_position="top right",
-        annotation_font_size=11,
+    )
+
+    # 2. Draw the text manually to bypass the broken Plotly math
+    fig.add_annotation(
+        x=series.index[-1],
+        y=1,                 # 1 is the top of the chart
+        yref="paper",        # Anchor to the chart paper, not the Y-axis data
+        text=" forecast →",
+        showarrow=False,
+        xanchor="left",
+        yanchor="bottom",
+        font=dict(size=11),
     )
 
     fig.update_layout(
