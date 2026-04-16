@@ -181,30 +181,144 @@ def parse_credit_card(filepath: Path) -> Optional[pd.DataFrame]:
     return df.reset_index(drop=True)
 
 
-def load_person_data(person: str, data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+import pandas as pd
+from pathlib import Path
+from typing import List, Tuple, Optional
+from io import BytesIO
+
+from src.supabase_store import is_available, list_csv_files, download_csv
+import streamlit as st
+
+def load_person_data(
+    person: str = "Kanokphan", 
+    data_dir: Optional[Path] = None
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Load and deduplicate all bank + CC files for a person.
-    Returns (bank_df, cc_df).
+    Load and deduplicate bank + credit card transactions for a person.
+    
+    Loading priority (best to worst):
+    1. Newly uploaded files in current session (via st.session_state)
+    2. Previously uploaded files stored in Supabase (persistent)
+    3. Local files in data_dir (fallback, mainly for local development)
+    
+    Returns: (bank_df, cc_df)
     """
-    files = scan_person_files(person, data_dir)
+    # --- 1. Collect all sources ---
+    bank_sources: List = []
+    cc_sources: List = []
 
-    bank_frames = [parse_bank_statement(f) for f in files["bank"]]
-    bank_frames = [f for f in bank_frames if f is not None and len(f) > 0]
+    # A. Session uploads (highest priority - fresh uploads this session)
+    bank_uploads = st.session_state.get(f"{person}_bank_uploads", [])
+    cc_uploads = st.session_state.get(f"{person}_cc_uploads", [])
 
-    cc_frames = [parse_credit_card(f) for f in files["cc"]]
-    cc_frames = [f for f in cc_frames if f is not None and len(f) > 0]
+    bank_sources.extend(bank_uploads)
+    cc_sources.extend(cc_uploads)
 
-    def combine(frames: list, sort_col: str) -> pd.DataFrame:
+    # B. Load from Supabase (persistent storage)
+    if is_available():
+        try:
+            # Bank files
+            bank_files = list_csv_files(person, "bank")
+            for meta in bank_files:
+                content = download_csv(meta["storage_path"])
+                if content:
+                    fake_file = BytesIO(content)
+                    fake_file.name = meta["filename"]
+                    bank_sources.append(fake_file)
+
+            # Credit card files
+            cc_files = list_csv_files(person, "cc")
+            for meta in cc_files:
+                content = download_csv(meta["storage_path"])
+                if content:
+                    fake_file = BytesIO(content)
+                    fake_file.name = meta["filename"]
+                    cc_sources.append(fake_file)
+
+            if bank_files or cc_files:
+                st.sidebar.success(
+                    f"✅ Loaded {len(bank_files)} bank + {len(cc_files)} CC files from Supabase"
+                )
+        except Exception as e:
+            st.sidebar.warning(f"⚠️ Failed to load from Supabase: {str(e)}. Using local fallback.")
+
+    # C. Fallback to local data/ directory (if provided and no data yet)
+    if (not bank_sources and not cc_sources) and data_dir is not None:
+        try:
+            from src.parsers import scan_person_files   # keep your existing scanner
+
+            files = scan_person_files(person, data_dir)
+            
+            # Convert local file paths to file-like objects (for consistent parsing)
+            for f in files.get("bank", []):
+                if f.exists():
+                    bank_sources.append(f.open("rb"))
+            for f in files.get("cc", []):
+                if f.exists():
+                    cc_sources.append(f.open("rb"))
+
+            if files.get("bank") or files.get("cc"):
+                st.sidebar.info("📁 Loaded data from local data/ folder")
+        except Exception as e:
+            st.sidebar.warning(f"Local data load failed: {str(e)}")
+
+    # --- 2. Parse all sources ---
+    bank_frames: List[pd.DataFrame] = []
+    cc_frames: List[pd.DataFrame] = []
+
+    # Import parsers here to avoid circular imports
+    from src.parsers import parse_bank_statement, parse_credit_card
+
+    for file_obj in bank_sources:
+        try:
+            df = parse_bank_statement(file_obj)
+            if df is not None and len(df) > 0:
+                bank_frames.append(df)
+        except Exception as e:
+            st.warning(f"Failed to parse bank file {getattr(file_obj, 'name', 'unknown')}: {e}")
+
+    for file_obj in cc_sources:
+        try:
+            df = parse_credit_card(file_obj)
+            if df is not None and len(df) > 0:
+                cc_frames.append(df)
+        except Exception as e:
+            st.warning(f"Failed to parse CC file {getattr(file_obj, 'name', 'unknown')}: {e}")
+
+    # --- 3. Combine + Deduplicate ---
+    def combine_frames(frames: List[pd.DataFrame], sort_col: str = "Date") -> pd.DataFrame:
         if not frames:
             return pd.DataFrame()
+        
         combined = pd.concat(frames, ignore_index=True)
-        # Deduplicate on key columns
-        key_cols = [c for c in [sort_col, "Merchant" if "Merchant" in combined.columns else "Description", "Amount" if "Amount" in combined.columns else "Withdrawal"] if c in combined.columns]
-        combined = combined.drop_duplicates(subset=key_cols, keep="first")
-        return combined.sort_values(sort_col).reset_index(drop=True)
+        
+        # Smart key columns for deduplication (handles slight column name differences)
+        key_cols = []
+        for col in [sort_col, "Merchant", "Description", "Amount", "Withdrawal", "Deposit"]:
+            if col in combined.columns:
+                key_cols.append(col)
+        
+        # Fallback if no good keys found
+        if not key_cols:
+            key_cols = combined.columns.tolist()[:3]   # use first few columns
 
-    bank_df = combine(bank_frames, "Date")
-    cc_df = combine(cc_frames, "Date")
+        # Deduplicate while keeping the first occurrence
+        combined = combined.drop_duplicates(subset=key_cols, keep="first")
+        
+        # Sort and clean
+        if sort_col in combined.columns:
+            combined = combined.sort_values(sort_col)
+        
+        return combined.reset_index(drop=True)
+
+    bank_df = combine_frames(bank_frames, "Date")
+    cc_df = combine_frames(cc_frames, "Date")
+
+    total_rows = len(bank_df) + len(cc_df)
+    if total_rows > 0:
+        st.sidebar.info(f"Total transactions loaded: {total_rows:,} rows")
+    else:
+        st.sidebar.warning("No transaction data found.")
 
     return bank_df, cc_df
 
