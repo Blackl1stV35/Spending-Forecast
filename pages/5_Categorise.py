@@ -59,22 +59,19 @@ with st.sidebar:
     except Exception:
         secret_key = os.environ.get("GROQ_API_KEY", "")
 
-    # FIXED: The value parameter is empty, keeping your key off the frontend UI
     api_key_input = st.text_input(
         "API key",
-        value="", 
+        value="",
         type="password",
-        placeholder="gsk_...",
-        help="Leave blank to use the system default, or enter your own key.",
+        placeholder="gsk_... (leave blank to use server key)",
+        help="Get a free key at console.groq.com. Leave blank if a server key is configured.",
     )
-    
-    # Uses the typed key if provided, otherwise silently falls back to the hidden backend key
     api_key = api_key_input.strip() or secret_key
 
     if not GROQ_AVAILABLE:
         st.error("groq package not installed.\n\nRun: `pip install groq`")
     elif api_key:
-        st.success("API key set", icon="✅")
+        st.success("API key set", icon="✓")
     else:
         st.warning("Enter a Groq API key to enable LLM suggestions.")
 
@@ -116,7 +113,8 @@ with st.sidebar:
             p.unlink()
         st.cache_data.clear()
         st.rerun()
-      
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Load data
 # ─────────────────────────────────────────────────────────────────────────────
@@ -223,13 +221,12 @@ if run_llm:
             st.session_state.llm_suggestions = suggestions
             progress.empty()
             st.success(
-                f"Got suggestions for {len(suggestions)} merchants.", icon="✅"
+                f"Got suggestions for {len(suggestions)} merchants.", icon="✓"
             )
         except Exception as exc:
             progress.empty()
-            
-            print(f"Groq API error details: {exc}")
-            st.error("Groq API error: Authentication failed or bad request. Please check your API key.", icon="🔒")
+            st.error(f"Groq API error: {exc}")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Bulk-accept high-confidence suggestions
@@ -253,7 +250,7 @@ if high_conf:
             mappings = {m: s["category"] for m, s in high_conf.items()}
             bulk_upsert(mappings, source="llm_accepted")
             st.cache_data.clear()
-            st.success(f"Saved {len(mappings)} mappings.", icon="✅")
+            st.success(f"Saved {len(mappings)} mappings.", icon="✓")
             st.rerun()
 
 st.markdown("---")
@@ -356,7 +353,7 @@ with tab_unresolved:
             if to_save:
                 bulk_upsert(to_save, source="manual")
                 st.cache_data.clear()
-                st.success(f"Saved {len(to_save)} merchant mappings.", icon="✅")
+                st.success(f"Saved {len(to_save)} merchant mappings.", icon="✓")
                 st.rerun()
             else:
                 st.info("No non-'Other' categories selected yet.")
