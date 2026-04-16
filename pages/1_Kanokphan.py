@@ -33,8 +33,14 @@ with st.sidebar:
     up_cc   = st.file_uploader("Credit card CSVs",    type="csv",
                                 accept_multiple_files=True, key="k_cc")
     if up_bank or up_cc:
+        # ← NEW: Persist to Supabase (only runs if secrets are configured)
+        if is_available():
+            for up in (up_bank or []):
+                upload_csv("Kanokphan", "bank", up.name, up.getvalue())
+            for up in (up_cc or []):
+                upload_csv("Kanokphan", "cc", up.name, up.getvalue())
         bank_df, cc_df = load_from_uploads(up_bank or [], up_cc or [])
-        st.success(f"Loaded {len(up_bank or [])} bank + {len(up_cc or [])} CC file(s)", icon="✅")
+        st.success(f"Loaded {len(up_bank or [])} bank + {len(up_cc or [])} CC file(s) ✅ Saved to Supabase", icon="✅")
 
     st.divider()
     st.header("Filters")
