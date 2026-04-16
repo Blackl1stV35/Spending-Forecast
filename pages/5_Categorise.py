@@ -59,13 +59,16 @@ with st.sidebar:
     except Exception:
         secret_key = os.environ.get("GROQ_API_KEY", "")
 
+    # FIXED: The value parameter is empty, keeping your key off the frontend UI
     api_key_input = st.text_input(
         "API key",
-        value=secret_key,
+        value="", 
         type="password",
         placeholder="gsk_...",
-        help="Get a free key at console.groq.com",
+        help="Leave blank to use the system default, or enter your own key.",
     )
+    
+    # Uses the typed key if provided, otherwise silently falls back to the hidden backend key
     api_key = api_key_input.strip() or secret_key
 
     if not GROQ_AVAILABLE:
@@ -113,8 +116,7 @@ with st.sidebar:
             p.unlink()
         st.cache_data.clear()
         st.rerun()
-
-
+      
 # ─────────────────────────────────────────────────────────────────────────────
 # Load data
 # ─────────────────────────────────────────────────────────────────────────────
