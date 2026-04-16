@@ -261,33 +261,84 @@ def comparison_chart(series_dict: dict) -> go.Figure:
 
 
 def calendar_heatmap(df: pd.DataFrame, person: str) -> go.Figure:
-    """Weekly heatmap: rows = day of week, columns = ISO week number."""
+    """
+    Spending heatmap: Y-axis = day of month (1–31), X-axis = calendar month (Jan–Dec).
+    Cell value = sum of Amount for that day/month combination across all years.
+
+    More intuitive than the ISO-week variant because it maps directly to how
+    people think about their monthly spending rhythm.
+    """
     if df.empty:
         return go.Figure()
 
     d = df.copy()
-    d["DOW"] = d["Date"].dt.dayofweek
-    d["Week"] = d["Date"].dt.isocalendar().week.astype(int)
+    d["Day"] = d["Date"].dt.day                      # 1–31
+    d["MonthNum"] = d["Date"].dt.month               # 1–12
+    d["MonthLabel"] = d["Date"].dt.strftime("%b")    # "Jan" … "Dec"
 
-    pivot = d.pivot_table(values="Amount", index="DOW", columns="Week", aggfunc="sum", fill_value=0)
-    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    # Aggregate: sum over all years for each (day, month) cell
+    agg = (
+        d.groupby(["Day", "MonthNum", "MonthLabel"])["Amount"]
+        .sum()
+        .reset_index()
+    )
+
+    # Build a full 31×12 grid so the heatmap is always rectangular
+    all_days = range(1, 32)
+    all_months = list(range(1, 13))
+    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    # Pivot: rows = day (1–31), cols = month (1–12)
+    pivot = (
+        agg.pivot_table(
+            values="Amount",
+            index="Day",
+            columns="MonthNum",
+            aggfunc="sum",
+            fill_value=0,
+        )
+        .reindex(index=all_days, columns=all_months, fill_value=0)
+    )
+
+    # Replace 0 with NaN for invalid days (e.g. Feb 30) so they render blank
+    # Mark cells as NaN when no transaction ever landed on that calendar slot
+    z = pivot.values.astype(float)
+    z[z == 0] = float("nan")
 
     fig = go.Figure(
         go.Heatmap(
-            z=pivot.values,
-            x=pivot.columns.tolist(),
-            y=[days[i] for i in pivot.index],
-            colorscale=[[0, "#F1EFE8"], [1, _color(person)]],
-            hovertemplate="Wk %{x}, %{y}<br>฿%{z:,.0f}<extra></extra>",
+            z=z,
+            x=month_labels,
+            y=list(all_days),
+            colorscale=[[0, "#F1EFE8"], [0.5, _color(person) + "99"], [1, _color(person)]],
             showscale=True,
+            hoverongaps=False,
+            hovertemplate="<b>%{x} %{y}</b><br>฿%{z:,.0f}<extra></extra>",
+            colorbar=dict(
+                tickformat=",.0f",
+                title=dict(text="฿", side="right"),
+                thickness=12,
+            ),
         )
     )
+
     fig.update_layout(
         template=_TPL,
-        xaxis_title="ISO week",
-        yaxis_title="",
-        height=230,
-        margin=_MARG,
+        xaxis=dict(
+            title="",
+            side="top",
+            tickmode="array",
+            tickvals=month_labels,
+        ),
+        yaxis=dict(
+            title="Day of month",
+            autorange="reversed",    # day 1 at the top
+            dtick=5,
+            tickmode="linear",
+        ),
+        height=520,
+        margin=dict(l=40, r=40, t=40, b=10),
     )
     return fig
 
